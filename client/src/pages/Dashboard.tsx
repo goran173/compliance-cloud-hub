@@ -1,0 +1,400 @@
+import React, { useEffect, useState } from "react";
+import Layout from "../components/Layout";
+import LogsTable from "../components/LogsTable";
+import toast, { Toaster } from "react-hot-toast";
+
+interface Integration {
+  id: string;
+  platform: string;
+  isActive: boolean;
+}
+
+interface Log {
+  id: string;
+  status: string;
+  source: string;
+  details: string | null;
+  createdAt: string;
+  customerEmail: string;
+  merchant: {
+    email: string;
+  };
+}
+
+interface DashboardData {
+  merchant?: {
+    shopDomain: string;
+    email: string;
+  };
+  integrations?: Integration[];
+  logs?: Log[];
+  jiraStatus?: string;
+}
+
+const Dashboard: React.FC = () => {
+  const [data, setData] = useState<DashboardData | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [isConnecting, setIsConnecting] = useState(false);
+  const [isDisconnecting, setIsDisconnecting] = useState(false);
+
+  // 1. Fetch Data on Load
+  useEffect(() => {
+    fetch("/api/dashboard-data")
+      .then((res) => res.json())
+      .then((data) => {
+        setData((prev) => ({ ...prev, ...data }));
+        setLoading(false);
+      })
+      .catch((err) => {
+        console.error("Error fetching dashboard data:", err);
+        setLoading(false);
+      });
+
+    fetch("/api/logs")
+      .then((res) => res.json())
+      .then((logs) => {
+        setData((prev) => ({ ...prev, logs }));
+      })
+      .catch((err) => console.error("Error fetching logs:", err));
+  }, []);
+
+  // 2. Handle Connect (Submit Form)
+  const handleJiraSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    const form = e.currentTarget;
+
+    // Check if fields are empty (HTML required handles this mostly, but good to be safe)
+    const domainInput = form.elements.namedItem("domain") as HTMLInputElement;
+    const emailInput = form.elements.namedItem("email") as HTMLInputElement;
+    const tokenInput = form.elements.namedItem("token") as HTMLInputElement;
+
+    if (!domainInput.value || !emailInput.value || !tokenInput.value) {
+      toast.error("Please fill in all fields");
+      return;
+    }
+
+    setIsConnecting(true);
+
+    try {
+      const res = await fetch("/api/integrations/jira", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          domain: domainInput.value,
+          email: emailInput.value,
+          token: tokenInput.value,
+        }),
+      });
+
+      if (res.ok) {
+        toast.success("Jira connected successfully!");
+        // Optimistically update state
+        setData((prev) =>
+          prev
+            ? {
+                ...prev,
+                jiraStatus: "Connected",
+                integrations: [
+                  ...(prev.integrations || []),
+                  { id: "temp", platform: "JIRA", isActive: true },
+                ],
+              }
+            : null,
+        );
+      } else {
+        const err = await res.json();
+        toast.error(err.error || "Failed to connect");
+      }
+    } catch (err) {
+      console.error("Error connecting Jira:", err);
+      toast.error("Network error. Please try again.");
+    } finally {
+      setIsConnecting(false);
+    }
+  };
+
+  // 3. Handle Disconnect
+  const handleJiraDisconnect = async () => {
+    setIsDisconnecting(true);
+    try {
+      const res = await fetch("/api/integrations/jira", { method: "DELETE" });
+      if (res.ok) {
+        toast.success("Jira disconnected successfully");
+        // Optimistically update UI
+        setData((prev) =>
+          prev
+            ? {
+                ...prev,
+                jiraStatus: "Disconnected",
+                integrations:
+                  prev.integrations?.filter((i) => i.platform !== "JIRA") || [],
+              }
+            : null,
+        );
+      } else {
+        toast.error("Failed to disconnect");
+      }
+    } catch (err) {
+      console.error("Error disconnecting:", err);
+      toast.error("Network error");
+    } finally {
+      setIsDisconnecting(false);
+    }
+  };
+
+  if (loading) {
+    return (
+      <Layout>
+        <div className="p-8 text-center">Loading dashboard...</div>
+      </Layout>
+    );
+  }
+
+  // Determine Status
+  const jiraIntegration = data?.integrations?.find(
+    (i) => i.platform === "JIRA",
+  );
+  const isConnected =
+    data?.jiraStatus === "Connected" || jiraIntegration?.isActive;
+
+  return (
+    <Layout>
+      <Toaster position="top-right" />
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+        {/* 1. Shopify Status Card (Always Active) */}
+        <div className="bg-white rounded-lg shadow-sm border border-slate-200 p-4">
+          <div className="flex items-center justify-between mb-2">
+            <h3 className="text-sm font-semibold text-slate-900">Shopify</h3>
+            <span className="px-2 py-0.5 text-xs font-semibold rounded-full bg-emerald-50 text-emerald-700 border border-emerald-100">
+              Connected
+            </span>
+          </div>
+          <p className="text-xs text-slate-500">
+            Store:{" "}
+            <span className="font-medium text-slate-700">
+              {data?.merchant?.shopDomain}
+            </span>
+          </p>
+        </div>
+
+        {/* 2. JIRA CARD (Active) */}
+        <div className="p-4 bg-white rounded-lg shadow-sm border border-slate-200 flex flex-col">
+          <div className="flex items-center justify-between mb-2">
+            <div className="flex items-center space-x-2">
+              <div className="w-8 h-8 bg-[#0052CC] rounded flex items-center justify-center text-white font-bold text-xs">
+                Jira
+              </div>
+              <h3 className="font-semibold text-sm text-slate-900">
+                Atlassian Jira
+              </h3>
+            </div>
+            <span
+              className={`px-2 py-0.5 rounded-full text-xs font-semibold border ${isConnected ? "bg-emerald-50 text-emerald-700 border-emerald-100" : "bg-slate-50 text-slate-600 border-slate-200"}`}
+            >
+              {isConnected ? "Connected" : "Not Connected"}
+            </span>
+          </div>
+
+          <p className="text-slate-500 text-xs mb-4 flex-grow">
+            Auto-redact personal data from support tickets upon GDPR request.
+          </p>
+
+          {isConnected ? (
+            <div className="space-y-3">
+              <button className="w-full py-2 bg-green-500 text-white rounded font-medium cursor-default opacity-90">
+                ✓ Active & Protecting
+              </button>
+              <button
+                onClick={handleJiraDisconnect}
+                disabled={isDisconnecting}
+                className="w-full py-2 border border-red-200 text-red-600 hover:bg-red-50 rounded font-medium text-sm transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex justify-center items-center"
+              >
+                {isDisconnecting ? (
+                  <span className="flex items-center gap-2">
+                    <svg
+                      className="animate-spin h-4 w-4 text-red-600"
+                      xmlns="http://www.w3.org/2000/svg"
+                      fill="none"
+                      viewBox="0 0 24 24"
+                    >
+                      <circle
+                        className="opacity-25"
+                        cx="12"
+                        cy="12"
+                        r="10"
+                        stroke="currentColor"
+                        strokeWidth="4"
+                      ></circle>
+                      <path
+                        className="opacity-75"
+                        fill="currentColor"
+                        d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+                      ></path>
+                    </svg>
+                    Disconnecting...
+                  </span>
+                ) : (
+                  "Disconnect"
+                )}
+              </button>
+            </div>
+          ) : (
+            <form onSubmit={handleJiraSubmit} className="space-y-3">
+              <input
+                name="domain"
+                placeholder="example.atlassian.net"
+                className="w-full p-2 border rounded text-sm"
+                required
+              />
+              <input
+                name="email"
+                type="email"
+                placeholder="admin@email.com"
+                className="w-full p-2 border rounded text-sm"
+                required
+              />
+              <input
+                name="token"
+                type="password"
+                placeholder="API Token"
+                className="w-full p-2 border rounded text-sm"
+                required
+              />
+              <button
+                type="submit"
+                disabled={isConnecting}
+                className="w-full py-2 bg-blue-600 hover:bg-blue-700 text-white rounded font-medium transition-colors shadow-sm disabled:opacity-70 disabled:cursor-not-allowed flex justify-center items-center"
+              >
+                {isConnecting ? (
+                  <span className="flex items-center gap-2">
+                    <svg
+                      className="animate-spin h-4 w-4 text-white"
+                      xmlns="http://www.w3.org/2000/svg"
+                      fill="none"
+                      viewBox="0 0 24 24"
+                    >
+                      <circle
+                        className="opacity-25"
+                        cx="12"
+                        cy="12"
+                        r="10"
+                        stroke="currentColor"
+                        strokeWidth="4"
+                      ></circle>
+                      <path
+                        className="opacity-75"
+                        fill="currentColor"
+                        d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+                      ></path>
+                    </svg>
+                    Connecting...
+                  </span>
+                ) : (
+                  "Connect Jira"
+                )}
+              </button>
+              <div className="text-center">
+                <a
+                  href="https://id.atlassian.com/manage-profile/security/api-tokens"
+                  target="_blank"
+                  className="text-xs text-blue-500 underline"
+                  rel="noreferrer"
+                >
+                  Get API Token
+                </a>
+              </div>
+            </form>
+          )}
+        </div>
+      </div>
+
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
+        {/* 3. SALESFORCE CARD (Coming Soon) */}
+        <div className="p-4 bg-slate-50 rounded-lg border border-slate-200 opacity-60 flex flex-col grayscale">
+          <div className="flex items-center justify-between mb-2">
+            <div className="flex items-center space-x-2">
+              <div className="w-8 h-8 bg-[#00A1E0] rounded flex items-center justify-center text-white font-bold text-xs">
+                SF
+              </div>
+              <h3 className="font-semibold text-sm text-slate-900">
+                Salesforce
+              </h3>
+            </div>
+            <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-slate-200 text-slate-500 uppercase tracking-wide">
+              Soon
+            </span>
+          </div>
+          <p className="text-gray-500 text-sm mb-6 flex-grow">
+            Automatically delete Leads and Contacts to ensure CRM compliance.
+          </p>
+          <button
+            disabled
+            className="w-full py-2 bg-gray-200 text-gray-400 rounded-md font-medium text-xs cursor-not-allowed"
+          >
+            Coming Soon
+          </button>
+        </div>
+
+        {/* 4. SLACK CARD (Coming Soon) */}
+        <div className="p-4 bg-slate-50 rounded-lg border border-slate-200 opacity-60 flex flex-col grayscale">
+          <div className="flex items-center justify-between mb-2">
+            <div className="flex items-center space-x-2">
+              <div className="w-8 h-8 bg-[#4A154B] rounded flex items-center justify-center text-white font-bold text-xs">
+                #
+              </div>
+              <h3 className="font-semibold text-sm text-slate-900">Slack</h3>
+            </div>
+            <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-slate-200 text-slate-500 uppercase tracking-wide">
+              Soon
+            </span>
+          </div>
+          <p className="text-slate-500 text-xs mb-4 flex-grow">
+            Scan and redact PII from public channels and private messages.
+          </p>
+          <button
+            disabled
+            className="w-full py-2 bg-gray-200 text-gray-400 rounded-md font-medium text-xs cursor-not-allowed"
+          >
+            Coming Soon
+          </button>
+        </div>
+
+        {/* 5. KLAVIYO CARD (Coming Soon) */}
+        <div className="p-4 bg-slate-50 rounded-lg border border-slate-200 opacity-60 flex flex-col grayscale">
+          <div className="flex items-center justify-between mb-2">
+            <div className="flex items-center space-x-2">
+              <div className="w-8 h-8 bg-slate-900 rounded flex items-center justify-center text-white font-bold text-xs">
+                K
+              </div>
+              <h3 className="font-semibold text-sm text-slate-900">Klaviyo</h3>
+            </div>
+            <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-slate-200 text-slate-500 uppercase tracking-wide">
+              Soon
+            </span>
+          </div>
+          <p className="text-slate-500 text-xs mb-4 flex-grow">
+            Process data deletion requests for email subscribers and list
+            profiles.
+          </p>
+          <button
+            disabled
+            className="w-full py-2 bg-gray-200 text-gray-400 rounded-md font-medium text-xs cursor-not-allowed"
+          >
+            Coming Soon
+          </button>
+        </div>
+      </div>
+
+      <div className="bg-white rounded-lg shadow">
+        <div className="p-6 border-b border-gray-200">
+          <h3 className="text-lg font-medium text-gray-900">
+            Recent Deletion Logs
+          </h3>
+        </div>
+        <LogsTable logs={data?.logs} />
+      </div>
+    </Layout>
+  );
+};
+
+export default Dashboard;

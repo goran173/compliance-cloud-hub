@@ -1,0 +1,51 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// The Merchant (Your Customer)
+model Merchant {
+  id             String        @id @default(uuid())
+  email          String        @unique
+  shopDomain     String        @unique // e.g., "cool-store.myshopify.com"
+  accessToken    String?       // Encrypted Shopify Token
+  isActive       Boolean       @default(true)
+  createdAt      DateTime      @default(now())
+  
+  integrations   Integration[]
+  logs           DeletionLog[]
+}
+
+// Connected Platforms (Jira, Salesforce)
+model Integration {
+  id             String   @id @default(uuid())
+  merchantId     String
+  merchant       Merchant @relation(fields: [merchantId], references: [id])
+  platform       String   // "JIRA", "SALESFORCE"
+  
+  // Security: These must be stored ENCRYPTED in your app logic
+  encryptedAccessToken  String
+  encryptedRefreshToken String?
+  instanceUrl           String?  // e.g., "https://my-org.atlassian.net"
+  
+  isActive       Boolean  @default(true)
+  updatedAt      DateTime @updatedAt
+}
+
+// The Audit Trail (Crucial for compliance proof)
+model DeletionLog {
+  id             String   @id @default(uuid())
+  merchantId     String
+  merchant       Merchant @relation(fields: [merchantId], references: [id])
+  
+  customerEmail  String   // The email that requested deletion
+  source         String   // "SHOPIFY_WEBHOOK"
+  status         String   // "PENDING", "COMPLETED", "FAILED"
+  
+  details        String?  // JSON string of what happened (e.g., "Deleted Lead ID 123 in Salesforce")
+  createdAt      DateTime @default(now())
+}

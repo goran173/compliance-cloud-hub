@@ -1,0 +1,39 @@
+{
+  "key": "com.yourname.compliancehub",
+  "name": "Compliance Hub GDPR Deletion",
+  "description": "Automated GDPR deletion for Jira Cloud.",
+  "vendor": {
+    "name": "Your Company Name",
+    "url": "https://your-app-url.com"
+  },
+  "baseUrl": "https://your-app-url.com",
+  "authentication": {
+    "type": "jwt"
+  },
+  "lifecycle": {
+    "installed": "/api/atlassian/installed",
+    "uninstalled": "/api/atlassian/uninstalled"
+  },
+  "scopes": [
+    "READ",
+    "ACT_AS_USER",
+    "ADMIN" 
+  ],
+  "modules": {
+    "webhooks": [
+      {
+        "event": "jira:issue_created", 
+        "url": "/api/webhooks/jira"
+      }
+    ],
+    "generalPages": [
+      {
+        "url": "/jira-config",
+        "name": {
+          "value": "GDPR Settings"
+        },
+        "key": "compliance-settings-page"
+      }
+    ]
+  }
+}

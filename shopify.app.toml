@@ -1,0 +1,23 @@
+# shopify.app.toml
+client_id = "YOUR_SHOPIFY_API_KEY" # Get this from Shopify Partners Dashboard
+name = "Compliance Cloud Hub"
+application_url = "https://your-app-url.com" # Update this after deploying to Railway/Render
+embedded = true
+
+[auth]
+redirect_urls = [
+  "https://your-app-url.com/api/auth/callback"
+]
+
+[webhooks]
+api_version = "2024-01"
+
+# The Money Maker: This line tells Shopify to wake your app up when a user asks for deletion
+[[webhooks.subscriptions]]
+topics = ["customers/redact"]
+uri = "/api/webhooks/shopify/redact"
+
+[access_scopes]
+# We only need read access to find customers. 
+# We don't need write access because the redaction request comes FROM Shopify.
+scopes = "read_customers"
