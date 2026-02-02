@@ -3,7 +3,7 @@ import express from "express";
 import cors from "cors";
 import path from "path";
 import { prisma } from './lib/prisma';
-import { processJiraDeletion } from './services/jira';
+import { processJiraDeletion, validateJiraCredentials } from './services/jira';
 import { decrypt, encrypt } from './utils/encryption';
 import crypto from 'crypto';
 
@@ -244,6 +244,12 @@ app.get('/api/auth/callback', async (req, res) => {
 app.post('/api/integrations/jira', async (req, res) => {
   try {
     const { domain, email, token } = req.body;
+
+    // 0. Validate Credentials First
+    const isValid = await validateJiraCredentials(domain, email, token);
+    if (!isValid) {
+      return res.status(401).json({ error: "Invalid Jira credentials or domain." });
+    }
     
     // For MVP, always grab the first merchant. 
     // In production, you'd use the session to find the specific logged-in user.

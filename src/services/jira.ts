@@ -1,6 +1,22 @@
 import axios from 'axios';
 import { decrypt } from '../utils/encryption'; 
 
+export const validateJiraCredentials = async (domain: string, email: string, token: string): Promise<boolean> => {
+  try {
+    const auth = Buffer.from(`${email}:${token}`).toString('base64');
+    await axios.get(`https://${domain}/rest/api/3/myself`, {
+      headers: {
+        'Authorization': `Basic ${auth}`,
+        'Accept': 'application/json'
+      }
+    });
+    return true;
+  } catch (error) {
+    console.error("Jira Validation Failed:", error);
+    return false;
+  }
+};
+
 export const processJiraDeletion = async (email: string, integration: any) => {
   console.log("🚀 STARTING JIRA PROCESSOR (V5 - JQL Endpoint Mode)");
   
