@@ -19,35 +19,40 @@ if (!process.env.ENCRYPTION_KEY || process.env.ENCRYPTION_KEY.length !== 32) {
 
 app.use(cors());
 
-// Middleware: Capture raw body for Webhooks (Crucial for Shopify)
+// 1. MIDDLEWARE: Capture Raw Body (REQUIRED as per documentation)
 app.use(express.json({
   verify: (req: any, _res, buf) => {
-    req.rawBody = buf;
+    req.rawBody = buf; // Stores the unparsed buffer for HMAC check
   }
 }));
 
-// --- SECURITY: Verify Shopify Webhooks (HMAC) ---
+// 2. SECURITY FUNCTION: The Algorithm from the documentation
 const verifyWebhook = (req: any, res: any, next: any) => {
-  const hmac = req.get('X-Shopify-Hmac-Sha256');
-  const secret = process.env.SHOPIFY_API_SECRET;
+  try {
+    const hmac = req.get('X-Shopify-Hmac-Sha256'); //
+    const secret = process.env.SHOPIFY_API_SECRET;
 
-  // If no raw body was captured (should be captured by express.json above), reject.
-  if (!req.rawBody || !hmac || !secret) {
-    console.warn("⚠️ Webhook missing signature or body");
+    if (!req.rawBody || !hmac || !secret) {
+      return res.status(401).send("Unauthorized");
+    }
+
+    // Calculate signature using the RAW body (buf)
+    const hash = crypto
+      .createHmac('sha256', secret)
+      .update(req.rawBody) //
+      .digest('base64');
+
+    // Compare safely
+    const signature = Buffer.from(hmac);
+    const digest = Buffer.from(hash);
+
+    if (signature.length === digest.length && crypto.timingSafeEqual(signature, digest)) {
+      return next();
+    } else {
+      return res.status(401).send("Unauthorized"); //
+    }
+  } catch (e) {
     return res.status(401).send("Unauthorized");
-  }
-
-  const hash = crypto
-    .createHmac('sha256', secret)
-    .update(req.rawBody)
-    .digest('base64');
-
-  // Compare the hash we calculated vs what Shopify sent
-  if (crypto.timingSafeEqual(Buffer.from(hash), Buffer.from(hmac))) {
-    next(); // Valid! Proceed.
-  } else {
-    console.error("❌ Webhook HMAC Validation Failed!");
-    res.status(401).send("Unauthorized");
   }
 };
 
