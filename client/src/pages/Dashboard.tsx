@@ -39,8 +39,22 @@ const Dashboard: React.FC = () => {
 
   // 1. Fetch Data on Load
   useEffect(() => {
-    fetch("/api/dashboard-data")
-      .then((res) => res.json())
+    // --- FIX 1: Get Shop from URL ---
+    const params = new URLSearchParams(window.location.search);
+    const shop = params.get("shop");
+
+    if (!shop) {
+      toast.error("Missing shop parameter");
+      setLoading(false);
+      return;
+    }
+
+    // --- FIX 2: Pass shop in URL ---
+    fetch(`/api/dashboard-data?shop=${shop}`)
+      .then((res) => {
+        if (!res.ok) throw new Error("Failed to load dashboard");
+        return res.json();
+      })
       .then((data) => {
         setData((prev) => ({ ...prev, ...data }));
         setLoading(false);
@@ -50,20 +64,36 @@ const Dashboard: React.FC = () => {
         setLoading(false);
       });
 
-    fetch("/api/logs")
+    fetch(`/api/logs?shop=${shop}`)
       .then((res) => res.json())
-      .then((logs) => {
-        setData((prev) => ({ ...prev, logs }));
+      .then((logsData) => {
+        // --- FIX 3: Safety check for Array ---
+        // This prevents the "map is not a function" crash
+        let safeLogs: Log[] = [];
+
+        if (Array.isArray(logsData)) {
+          safeLogs = logsData;
+        } else if (logsData && Array.isArray(logsData.logs)) {
+          safeLogs = logsData.logs;
+        } else {
+          console.warn("Logs API returned invalid format", logsData);
+        }
+
+        setData((prev) => ({ ...prev, logs: safeLogs }));
       })
-      .catch((err) => console.error("Error fetching logs:", err));
+      .catch((err) => {
+        console.error("Error fetching logs:", err);
+        setData((prev) => ({ ...prev, logs: [] })); // Default to empty on error
+      });
   }, []);
 
   // 2. Handle Connect (Submit Form)
   const handleJiraSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
+    const params = new URLSearchParams(window.location.search);
+    const shop = params.get("shop");
     const form = e.currentTarget;
 
-    // Check if fields are empty (HTML required handles this mostly, but good to be safe)
     const domainInput = form.elements.namedItem("domain") as HTMLInputElement;
     const emailInput = form.elements.namedItem("email") as HTMLInputElement;
     const tokenInput = form.elements.namedItem("token") as HTMLInputElement;
@@ -80,6 +110,7 @@ const Dashboard: React.FC = () => {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
+          shopDomain: shop, // --- FIX 4: Pass shop in Body ---
           domain: domainInput.value,
           email: emailInput.value,
           token: tokenInput.value,
@@ -115,9 +146,18 @@ const Dashboard: React.FC = () => {
 
   // 3. Handle Disconnect
   const handleJiraDisconnect = async () => {
+    const params = new URLSearchParams(window.location.search);
+    const shop = params.get("shop");
     setIsDisconnecting(true);
+
     try {
-      const res = await fetch("/api/integrations/jira", { method: "DELETE" });
+      const res = await fetch("/api/integrations/jira", {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        // --- FIX 5: Pass shop in Body for Delete ---
+        body: JSON.stringify({ shopDomain: shop }),
+      });
+
       if (res.ok) {
         toast.success("Jira disconnected successfully");
         // Optimistically update UI
@@ -172,7 +212,7 @@ const Dashboard: React.FC = () => {
           <p className="text-xs text-slate-500">
             Store:{" "}
             <span className="font-medium text-slate-700">
-              {data?.merchant?.shopDomain}
+              {data?.merchant?.shopDomain || "Loading..."}
             </span>
           </p>
         </div>
@@ -391,7 +431,7 @@ const Dashboard: React.FC = () => {
             Recent Deletion Logs
           </h3>
         </div>
-        <LogsTable logs={data?.logs} />
+        <LogsTable logs={data?.logs || []} />
       </div>
     </Layout>
   );
