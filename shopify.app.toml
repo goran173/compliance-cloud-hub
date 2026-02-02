@@ -1,33 +1,28 @@
 # shopify.app.toml
-client_id = "YOUR_SHOPIFY_API_KEY" # Get this from Shopify Partners Dashboard
+
+# 1. Your API Key
+client_id = "b5d623c1f71d3f67638e6515e8e2109f"
 name = "Compliance Cloud Hub"
-application_url = "https://your-app-url.com" # Update this after deploying to Railway/Render
+
+# 2. FRONTEND URL (Vercel)
+# This allows the app to load in the iframe
+application_url = "https://compliance-cloud-hub.vercel.app"
 embedded = true
 
 [auth]
+# 3. BACKEND URL (Render)
+# This handles the login handshake
 redirect_urls = [
-  "https://your-app-url.com/api/auth/callback"
+  "https://compliance-backend-ypby.onrender.com/api/auth/callback"
 ]
 
 [webhooks]
 api_version = "2024-01"
 
-# Customer Data Request
+# 4. Standard Webhook (App Uninstalled)
 [[webhooks.subscriptions]]
-topics = [ "customers/data_request" ]
-uri = "/api/webhooks/shopify/data-request"
-
-# Customer Redact
-[[webhooks.subscriptions]]
-topics = [ "customers/redact" ]
-uri = "/api/webhooks/shopify/redact"
-
-# Shop Redact
-[[webhooks.subscriptions]]
-topics = [ "shop/redact" ]
-uri = "/api/webhooks/shopify/shop-redact"
+topics = [ "app/uninstalled" ]
+uri = "https://compliance-backend-ypby.onrender.com/api/webhooks/shopify/shop-redact"
 
 [access_scopes]
-# We only need read access to find customers. 
-# We don't need write access because the redaction request comes FROM Shopify.
 scopes = "read_customers"
