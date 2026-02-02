@@ -1,22 +1,22 @@
 [webhooks]
-api_version = "2024-07" # Update to the version mentioned in your doc
+api_version = "2026-01"
 
-# 1. Customer Data Request
+# 1. Customer Data Request (GDPR)
 [[webhooks.subscriptions]]
 compliance_topics = [ "customers/data_request" ]
 uri = "https://compliance-backend-ypby.onrender.com/api/webhooks/shopify/data-request"
 
-# 2. Customer Redact
+# 2. Customer Redact (GDPR)
 [[webhooks.subscriptions]]
 compliance_topics = [ "customers/redact" ]
 uri = "https://compliance-backend-ypby.onrender.com/api/webhooks/shopify/redact"
 
-# 3. Shop Redact
+# 3. Shop Redact (GDPR)
 [[webhooks.subscriptions]]
 compliance_topics = [ "shop/redact" ]
 uri = "https://compliance-backend-ypby.onrender.com/api/webhooks/shopify/shop-redact"
 
-# 4. App Uninstalled (Standard Webhook - uses 'topics')
+# 4. App Uninstalled (Standard)
 [[webhooks.subscriptions]]
 topics = [ "app/uninstalled" ]
 uri = "https://compliance-backend-ypby.onrender.com/api/webhooks/shopify/shop-redact"
