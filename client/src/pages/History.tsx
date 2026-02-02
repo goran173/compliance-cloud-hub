@@ -20,7 +20,7 @@ const History: React.FC = () => {
             GDPR/CCPA deletion and redaction events
           </p>
         </div>
-        <LogsTable hideHeader />
+        <LogsTable />
       </div>
     </Layout>
   );
