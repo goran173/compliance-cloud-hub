@@ -31,18 +31,25 @@ interface DashboardData {
   jiraStatus?: string;
 }
 
-// Updated Helper: Retries finding the token if Shopify isn't ready yet
+// --- HELPER: Get Session Token (URL First, then App Bridge) ---
 const getSessionToken = async () => {
-  // Retry up to 10 times (5 seconds max)
+  // 1. FASTEST: Check the URL query parameters first
+  const params = new URLSearchParams(window.location.search);
+  const tokenFromUrl = params.get("id_token");
+  if (tokenFromUrl) {
+    console.log("✅ Token found in URL!");
+    return tokenFromUrl;
+  }
+
+  // 2. FALLBACK: Ask App Bridge (Retry logic)
   for (let i = 0; i < 10; i++) {
     if (window.shopify && window.shopify.id) {
       try {
         return await window.shopify.id.getIdToken();
       } catch (e) {
-        console.warn("Token fetch failed, retrying...", e);
+        console.warn("App Bridge Token Error:", e);
       }
     }
-    // Wait 500ms before trying again
     await new Promise((resolve) => setTimeout(resolve, 500));
   }
   return null;
@@ -53,7 +60,7 @@ const getShop = () => {
   const params = new URLSearchParams(window.location.search);
   const shopFromUrl = params.get("shop");
   if (shopFromUrl) {
-    localStorage.setItem("shopify_domain", shopFromUrl);
+    // Clean the shop string just in case
     return shopFromUrl;
   }
   return localStorage.getItem("shopify_domain");
