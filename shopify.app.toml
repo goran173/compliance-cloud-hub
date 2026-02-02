@@ -1,22 +1,17 @@
 [webhooks]
 api_version = "2026-01"
 
-# 1. Customer Data Request (GDPR)
+# 1. Customer Data Request
 [[webhooks.subscriptions]]
 compliance_topics = [ "customers/data_request" ]
 uri = "https://compliance-backend-ypby.onrender.com/api/webhooks/shopify/data-request"
 
-# 2. Customer Redact (GDPR)
+# 2. Customer Redact
 [[webhooks.subscriptions]]
 compliance_topics = [ "customers/redact" ]
 uri = "https://compliance-backend-ypby.onrender.com/api/webhooks/shopify/redact"
 
-# 3. Shop Redact (GDPR)
+# 3. Shop Redact
 [[webhooks.subscriptions]]
 compliance_topics = [ "shop/redact" ]
-uri = "https://compliance-backend-ypby.onrender.com/api/webhooks/shopify/shop-redact"
-
-# 4. App Uninstalled (Standard)
-[[webhooks.subscriptions]]
-topics = [ "app/uninstalled" ]
 uri = "https://compliance-backend-ypby.onrender.com/api/webhooks/shopify/shop-redact"
