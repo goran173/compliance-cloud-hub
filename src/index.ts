@@ -5,6 +5,7 @@ import path from "path";
 import { prisma } from './lib/prisma';
 import { processJiraDeletion } from './services/jira';
 import { decrypt, encrypt } from './utils/encryption';
+import crypto from 'crypto';
 
 const app = express();
 // const prisma = new PrismaClient(); // Removed local instantiation
@@ -25,6 +26,31 @@ app.use(express.json({
   }
 }));
 
+// --- SECURITY: Verify Shopify Webhooks (HMAC) ---
+const verifyWebhook = (req: any, res: any, next: any) => {
+  const hmac = req.get('X-Shopify-Hmac-Sha256');
+  const secret = process.env.SHOPIFY_API_SECRET;
+
+  // If no raw body was captured (should be captured by express.json above), reject.
+  if (!req.rawBody || !hmac || !secret) {
+    console.warn("⚠️ Webhook missing signature or body");
+    return res.status(401).send("Unauthorized");
+  }
+
+  const hash = crypto
+    .createHmac('sha256', secret)
+    .update(req.rawBody)
+    .digest('base64');
+
+  // Compare the hash we calculated vs what Shopify sent
+  if (crypto.timingSafeEqual(Buffer.from(hash), Buffer.from(hmac))) {
+    next(); // Valid! Proceed.
+  } else {
+    console.error("❌ Webhook HMAC Validation Failed!");
+    res.status(401).send("Unauthorized");
+  }
+};
+
 // --- DEBUG LOGGER ---
 // This prints EVERY request hitting your server. 
 // If you don't see this, Ngrok is pointing to the wrong place.
@@ -39,7 +65,7 @@ app.use(express.static(path.join(__dirname, '../client/dist')));
 // 2. API ROUTES
 
 // A. The Webhook (Trigger)
-app.post("/api/webhooks/shopify/redact", async (req, res) => {
+app.post("/api/webhooks/shopify/redact", verifyWebhook, async (req, res) => {
     console.log("🔥 WEBHOOK HIT! Processing...");
     
     // 1. Always respond 200 OK fast
@@ -75,7 +101,7 @@ app.post("/api/webhooks/shopify/redact", async (req, res) => {
 // 1. Customers Data Request (View Data)
 // Required by Shopify, but for Jira, we usually just say "We don't hold data" or ignore it for MVP.
 // We must return 200 OK to acknowledge receipt.
-app.post("/api/webhooks/shopify/data-request", (req, res) => {
+app.post("/api/webhooks/shopify/data-request", verifyWebhook, (req, res) => {
   console.log("📥 Data Request Webhook received (Not implemented for MVP)");
   res.status(200).send();
 });
@@ -83,7 +109,7 @@ app.post("/api/webhooks/shopify/data-request", (req, res) => {
 // 2. Shop Redact (Uninstall cleanup)
 // Required by Shopify. This fires 48 hours after a merchant uninstalls your app.
 // It tells you to delete their config data from YOUR database.
-app.post("/api/webhooks/shopify/shop-redact", async (req, res) => {
+app.post("/api/webhooks/shopify/shop-redact", verifyWebhook, async (req, res) => {
   console.log("🗑️ Shop Redact Webhook received");
   // In a real app, you would delete the Merchant record here.
   // For MVP, just acknowledging is enough to pass review.
