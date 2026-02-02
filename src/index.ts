@@ -137,6 +137,81 @@ app.post('/api/integrations/toggle', async (req, res) => {
   }
 });
 
+// --- SHOPIFY OAUTH & INSTALL ROUTES ---
+
+// 1. START INSTALL: Redirect to Shopify permission screen
+app.get('/api/auth', async (req, res) => {
+  const shop = req.query.shop as string;
+  if (!shop) return res.status(400).send('Missing shop parameter');
+
+  const apiKey = process.env.SHOPIFY_API_KEY;
+  const scopes = process.env.SCOPES || 'read_customers,write_customers';
+  
+  // The URL where Shopify sends the user back after they click "Install"
+  // MUST match the "Allowed Redirection URL" in Partner Dashboard exactly!
+  const redirectUri = `https://${req.get('host')}/api/auth/callback`; 
+
+  const installUrl = `https://${shop}/admin/oauth/authorize?client_id=${apiKey}&scope=${scopes}&redirect_uri=${redirectUri}`;
+
+  res.redirect(installUrl);
+});
+
+// 2. FINISH INSTALL: Exchange code for Token & Save to DB
+app.get('/api/auth/callback', async (req, res) => {
+  const { shop, code } = req.query;
+
+  if (!shop || !code) return res.status(400).send('Missing shop or code');
+
+  const apiKey = process.env.SHOPIFY_API_KEY;
+  const apiSecret = process.env.SHOPIFY_API_SECRET;
+
+  try {
+    // A. Exchange the temporary code for a permanent Access Token
+    const accessTokenResponse = await fetch(`https://${shop}/admin/oauth/access_token`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        client_id: apiKey,
+        client_secret: apiSecret,
+        code,
+      }),
+    });
+
+    const tokenData = await accessTokenResponse.json();
+    const accessToken = tokenData.access_token;
+
+    if (!accessToken) throw new Error("Failed to get access token");
+
+    // B. Save Merchant to Database
+    await prisma.merchant.upsert({
+      where: { shopDomain: shop as string },
+      update: { 
+        accessToken, 
+        isActive: true,
+        email: `admin@${shop}` // Fallback email
+      },
+      create: {
+        shopDomain: shop as string,
+        accessToken,
+        isActive: true,
+        email: `admin@${shop}`
+      },
+    });
+
+    console.log(`✅ Merchant Installed/Updated: ${shop}`);
+
+    // C. Redirect to your Frontend (Vercel)
+    // We pass the shop param so the frontend knows who is logged in
+    res.redirect(`https://compliance-cloud-hub.vercel.app?shop=${shop}`);
+
+  } catch (error) {
+    console.error("❌ OAuth Error:", error);
+    res.status(500).send("Installation failed. Check server logs.");
+  }
+});
+
+// --------------------------------------
+
 // --- JIRA ROUTES ---
 
 // 1. CONNECT (Save Credentials)
