@@ -3,6 +3,7 @@
     {
       "source": "/api/:path*",
       "destination": "https://compliance-backend-ypby.onrender.com/api/:path*"
-    }
+    },
+    { "source": "/(.*)", "destination": "/index.html" }
   ]
 }
