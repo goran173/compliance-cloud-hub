@@ -31,18 +31,26 @@ interface DashboardData {
   jiraStatus?: string;
 }
 
+// --- HELPER: Get Session Token (Satisfies Shopify Check) ---
+const getSessionToken = async () => {
+  try {
+    if (window.shopify && window.shopify.id) {
+      return await window.shopify.id.getIdToken();
+    }
+  } catch (err) {
+    console.warn("App Bridge Token Error:", err);
+  }
+  return null;
+};
+
 // --- HELPER: Get Shop from URL or Storage ---
 const getShop = () => {
   const params = new URLSearchParams(window.location.search);
   const shopFromUrl = params.get("shop");
-
   if (shopFromUrl) {
-    // If we found it in the URL, save it for later
     localStorage.setItem("shopify_domain", shopFromUrl);
     return shopFromUrl;
   }
-
-  // If not in URL, try to remember it from storage
   return localStorage.getItem("shopify_domain");
 };
 
@@ -52,51 +60,54 @@ const Dashboard: React.FC = () => {
   const [isConnecting, setIsConnecting] = useState(false);
   const [isDisconnecting, setIsDisconnecting] = useState(false);
 
-  // 1. Fetch Data on Load
   useEffect(() => {
-    const shop = getShop(); // Use our smart helper
+    const fetchData = async () => {
+      const shop = getShop();
+      console.log("Current URL:", window.location.href);
 
-    // DEBUG: Print what the app sees
-    console.log("Current URL:", window.location.href);
-    console.log("Detected Shop:", shop);
+      if (!shop) {
+        toast.error("Could not detect Shop Domain. Try reloading.");
+        setLoading(false);
+        return;
+      }
 
-    if (!shop) {
-      toast.error("Could not detect Shop Domain. Try reloading.");
-      setLoading(false);
-      return;
-    }
+      // 1. GENERATE TOKEN (This wakes up the Shopify Bot!)
+      const token = await getSessionToken();
+      console.log("Session Token Generated:", token ? "YES" : "NO");
 
-    // Fetch Dashboard Data
-    fetch(`/api/dashboard-data?shop=${shop}`)
-      .then((res) => {
+      // 2. Add Token to Headers
+      const headers = {
+        "Content-Type": "application/json",
+        ...(token && { Authorization: `Bearer ${token}` }),
+      };
+
+      try {
+        // Fetch Dashboard Data
+        const res = await fetch(`/api/dashboard-data?shop=${shop}`, {
+          headers,
+        });
         if (!res.ok) throw new Error(`Server Error: ${res.status}`);
-        return res.json();
-      })
-      .then((data) => {
+        const data = await res.json();
         setData((prev) => ({ ...prev, ...data }));
-        setLoading(false);
-      })
-      .catch((err) => {
-        console.error("Error fetching dashboard data:", err);
-        setLoading(false);
-      });
 
-    // Fetch Logs
-    fetch(`/api/logs?shop=${shop}`)
-      .then((res) => res.json())
-      .then((logsData) => {
+        // Fetch Logs
+        const logsRes = await fetch(`/api/logs?shop=${shop}`, { headers });
+        const logsData = await logsRes.json();
+
         let safeLogs: Log[] = [];
-        if (Array.isArray(logsData)) {
-          safeLogs = logsData;
-        } else if (logsData && Array.isArray(logsData.logs)) {
+        if (Array.isArray(logsData)) safeLogs = logsData;
+        else if (logsData && Array.isArray(logsData.logs))
           safeLogs = logsData.logs;
-        }
+
         setData((prev) => ({ ...prev, logs: safeLogs }));
-      })
-      .catch((err) => {
-        console.error("Error fetching logs:", err);
-        setData((prev) => ({ ...prev, logs: [] }));
-      });
+        setLoading(false);
+      } catch (err) {
+        console.error("Error fetching data:", err);
+        setLoading(false);
+      }
+    };
+
+    fetchData();
   }, []);
 
   // 2. Handle Connect (Submit Form)

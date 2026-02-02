@@ -1,17 +1,35 @@
+# Learn more about configuring your app at https://shopify.dev/docs/apps/tools/cli/configuration
+
+client_id = "b5d623c1f71d3f67638e6515e8e2109f"
+name = "Compliance Cloud Hub"
+application_url = "https://compliance-cloud-hub.vercel.app/"
+embedded = true
+
 [webhooks]
 api_version = "2026-01"
 
-# 1. Customer Data Request
-[[webhooks.subscriptions]]
-compliance_topics = [ "customers/data_request" ]
-uri = "https://compliance-backend-ypby.onrender.com/api/webhooks/shopify/data-request"
+  [[webhooks.subscriptions]]
+  uri = "https://compliance-backend-ypby.onrender.com/api/webhooks/shopify/data-request"
+  compliance_topics = [ "customers/data_request" ]
 
-# 2. Customer Redact
-[[webhooks.subscriptions]]
-compliance_topics = [ "customers/redact" ]
-uri = "https://compliance-backend-ypby.onrender.com/api/webhooks/shopify/redact"
+  [[webhooks.subscriptions]]
+  uri = "https://compliance-backend-ypby.onrender.com/api/webhooks/shopify/redact"
+  compliance_topics = [ "customers/redact" ]
 
-# 3. Shop Redact
-[[webhooks.subscriptions]]
-compliance_topics = [ "shop/redact" ]
-uri = "https://compliance-backend-ypby.onrender.com/api/webhooks/shopify/shop-redact"
+  [[webhooks.subscriptions]]
+  uri = "https://compliance-backend-ypby.onrender.com/api/webhooks/shopify/shop-redact"
+  compliance_topics = [ "shop/redact" ]
+
+[access_scopes]
+# Learn more at https://shopify.dev/docs/apps/tools/cli/configuration#access_scopes
+scopes = ""
+optional_scopes = [ ]
+use_legacy_install_flow = false
+
+[auth]
+redirect_urls = [
+  "https://compliance-backend-ypby.onrender.com/api/auth/callback",
+  "https://compliance-backend-ypby.onrender.com/api/webhooks/shopify/data-request",
+  "https://compliance-backend-ypby.onrender.com/api/webhooks/shopify/redact",
+  "https://compliance-backend-ypby.onrender.com/api/webhooks/shopify/shop-redact"
+]
