@@ -12,10 +12,20 @@ redirect_urls = [
 [webhooks]
 api_version = "2024-01"
 
-# The Money Maker: This line tells Shopify to wake your app up when a user asks for deletion
+# Customer Data Request
 [[webhooks.subscriptions]]
-topics = ["customers/redact"]
+topics = [ "customers/data_request" ]
+uri = "/api/webhooks/shopify/data-request"
+
+# Customer Redact
+[[webhooks.subscriptions]]
+topics = [ "customers/redact" ]
 uri = "/api/webhooks/shopify/redact"
+
+# Shop Redact
+[[webhooks.subscriptions]]
+topics = [ "shop/redact" ]
+uri = "/api/webhooks/shopify/shop-redact"
 
 [access_scopes]
 # We only need read access to find customers. 
