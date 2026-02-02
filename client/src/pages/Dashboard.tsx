@@ -31,6 +31,21 @@ interface DashboardData {
   jiraStatus?: string;
 }
 
+// --- HELPER: Get Shop from URL or Storage ---
+const getShop = () => {
+  const params = new URLSearchParams(window.location.search);
+  const shopFromUrl = params.get("shop");
+
+  if (shopFromUrl) {
+    // If we found it in the URL, save it for later
+    localStorage.setItem("shopify_domain", shopFromUrl);
+    return shopFromUrl;
+  }
+
+  // If not in URL, try to remember it from storage
+  return localStorage.getItem("shopify_domain");
+};
+
 const Dashboard: React.FC = () => {
   const [data, setData] = useState<DashboardData | null>(null);
   const [loading, setLoading] = useState(true);
@@ -39,20 +54,22 @@ const Dashboard: React.FC = () => {
 
   // 1. Fetch Data on Load
   useEffect(() => {
-    // --- FIX 1: Get Shop from URL ---
-    const params = new URLSearchParams(window.location.search);
-    const shop = params.get("shop");
+    const shop = getShop(); // Use our smart helper
+
+    // DEBUG: Print what the app sees
+    console.log("Current URL:", window.location.href);
+    console.log("Detected Shop:", shop);
 
     if (!shop) {
-      toast.error("Missing shop parameter");
+      toast.error("Could not detect Shop Domain. Try reloading.");
       setLoading(false);
       return;
     }
 
-    // --- FIX 2: Pass shop in URL ---
+    // Fetch Dashboard Data
     fetch(`/api/dashboard-data?shop=${shop}`)
       .then((res) => {
-        if (!res.ok) throw new Error("Failed to load dashboard");
+        if (!res.ok) throw new Error(`Server Error: ${res.status}`);
         return res.json();
       })
       .then((data) => {
@@ -64,34 +81,28 @@ const Dashboard: React.FC = () => {
         setLoading(false);
       });
 
+    // Fetch Logs
     fetch(`/api/logs?shop=${shop}`)
       .then((res) => res.json())
       .then((logsData) => {
-        // --- FIX 3: Safety check for Array ---
-        // This prevents the "map is not a function" crash
         let safeLogs: Log[] = [];
-
         if (Array.isArray(logsData)) {
           safeLogs = logsData;
         } else if (logsData && Array.isArray(logsData.logs)) {
           safeLogs = logsData.logs;
-        } else {
-          console.warn("Logs API returned invalid format", logsData);
         }
-
         setData((prev) => ({ ...prev, logs: safeLogs }));
       })
       .catch((err) => {
         console.error("Error fetching logs:", err);
-        setData((prev) => ({ ...prev, logs: [] })); // Default to empty on error
+        setData((prev) => ({ ...prev, logs: [] }));
       });
   }, []);
 
   // 2. Handle Connect (Submit Form)
   const handleJiraSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
-    const params = new URLSearchParams(window.location.search);
-    const shop = params.get("shop");
+    const shop = getShop(); // Get shop again
     const form = e.currentTarget;
 
     const domainInput = form.elements.namedItem("domain") as HTMLInputElement;
@@ -110,7 +121,7 @@ const Dashboard: React.FC = () => {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          shopDomain: shop, // --- FIX 4: Pass shop in Body ---
+          shopDomain: shop,
           domain: domainInput.value,
           email: emailInput.value,
           token: tokenInput.value,
@@ -119,7 +130,6 @@ const Dashboard: React.FC = () => {
 
       if (res.ok) {
         toast.success("Jira connected successfully!");
-        // Optimistically update state
         setData((prev) =>
           prev
             ? {
@@ -146,21 +156,18 @@ const Dashboard: React.FC = () => {
 
   // 3. Handle Disconnect
   const handleJiraDisconnect = async () => {
-    const params = new URLSearchParams(window.location.search);
-    const shop = params.get("shop");
+    const shop = getShop();
     setIsDisconnecting(true);
 
     try {
       const res = await fetch("/api/integrations/jira", {
         method: "DELETE",
         headers: { "Content-Type": "application/json" },
-        // --- FIX 5: Pass shop in Body for Delete ---
         body: JSON.stringify({ shopDomain: shop }),
       });
 
       if (res.ok) {
         toast.success("Jira disconnected successfully");
-        // Optimistically update UI
         setData((prev) =>
           prev
             ? {
@@ -185,7 +192,10 @@ const Dashboard: React.FC = () => {
   if (loading) {
     return (
       <Layout>
-        <div className="p-8 text-center">Loading dashboard...</div>
+        <div className="flex flex-col items-center justify-center h-64">
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-gray-900 mb-4"></div>
+          <p className="text-gray-500">Connecting to Compliance Cloud...</p>
+        </div>
       </Layout>
     );
   }
@@ -212,7 +222,7 @@ const Dashboard: React.FC = () => {
           <p className="text-xs text-slate-500">
             Store:{" "}
             <span className="font-medium text-slate-700">
-              {data?.merchant?.shopDomain || "Loading..."}
+              {data?.merchant?.shopDomain || getShop()}
             </span>
           </p>
         </div>
@@ -249,33 +259,7 @@ const Dashboard: React.FC = () => {
                 disabled={isDisconnecting}
                 className="w-full py-2 border border-red-200 text-red-600 hover:bg-red-50 rounded font-medium text-sm transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex justify-center items-center"
               >
-                {isDisconnecting ? (
-                  <span className="flex items-center gap-2">
-                    <svg
-                      className="animate-spin h-4 w-4 text-red-600"
-                      xmlns="http://www.w3.org/2000/svg"
-                      fill="none"
-                      viewBox="0 0 24 24"
-                    >
-                      <circle
-                        className="opacity-25"
-                        cx="12"
-                        cy="12"
-                        r="10"
-                        stroke="currentColor"
-                        strokeWidth="4"
-                      ></circle>
-                      <path
-                        className="opacity-75"
-                        fill="currentColor"
-                        d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
-                      ></path>
-                    </svg>
-                    Disconnecting...
-                  </span>
-                ) : (
-                  "Disconnect"
-                )}
+                {isDisconnecting ? "Disconnecting..." : "Disconnect"}
               </button>
             </div>
           ) : (
@@ -305,33 +289,7 @@ const Dashboard: React.FC = () => {
                 disabled={isConnecting}
                 className="w-full py-2 bg-blue-600 hover:bg-blue-700 text-white rounded font-medium transition-colors shadow-sm disabled:opacity-70 disabled:cursor-not-allowed flex justify-center items-center"
               >
-                {isConnecting ? (
-                  <span className="flex items-center gap-2">
-                    <svg
-                      className="animate-spin h-4 w-4 text-white"
-                      xmlns="http://www.w3.org/2000/svg"
-                      fill="none"
-                      viewBox="0 0 24 24"
-                    >
-                      <circle
-                        className="opacity-25"
-                        cx="12"
-                        cy="12"
-                        r="10"
-                        stroke="currentColor"
-                        strokeWidth="4"
-                      ></circle>
-                      <path
-                        className="opacity-75"
-                        fill="currentColor"
-                        d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
-                      ></path>
-                    </svg>
-                    Connecting...
-                  </span>
-                ) : (
-                  "Connect Jira"
-                )}
+                {isConnecting ? "Connecting..." : "Connect Jira"}
               </button>
               <div className="text-center">
                 <a
@@ -348,8 +306,9 @@ const Dashboard: React.FC = () => {
         </div>
       </div>
 
+      {/* Rest of the "Coming Soon" Cards below... (Keeping your existing layout) */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
-        {/* 3. SALESFORCE CARD (Coming Soon) */}
+        {/* Salesforce */}
         <div className="p-4 bg-slate-50 rounded-lg border border-slate-200 opacity-60 flex flex-col grayscale">
           <div className="flex items-center justify-between mb-2">
             <div className="flex items-center space-x-2">
@@ -375,7 +334,7 @@ const Dashboard: React.FC = () => {
           </button>
         </div>
 
-        {/* 4. SLACK CARD (Coming Soon) */}
+        {/* Slack */}
         <div className="p-4 bg-slate-50 rounded-lg border border-slate-200 opacity-60 flex flex-col grayscale">
           <div className="flex items-center justify-between mb-2">
             <div className="flex items-center space-x-2">
@@ -399,7 +358,7 @@ const Dashboard: React.FC = () => {
           </button>
         </div>
 
-        {/* 5. KLAVIYO CARD (Coming Soon) */}
+        {/* Klaviyo */}
         <div className="p-4 bg-slate-50 rounded-lg border border-slate-200 opacity-60 flex flex-col grayscale">
           <div className="flex items-center justify-between mb-2">
             <div className="flex items-center space-x-2">
