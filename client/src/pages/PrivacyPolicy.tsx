@@ -25,7 +25,7 @@ const PrivacyPolicy = () => {
       </p>
 
       <h2 className="text-xl font-bold mt-6 mb-2">4. Contact</h2>
-      <p>For privacy concerns, contact: privacy@your-email.com</p>
+      <p>For privacy concerns, contact: mag.digitalsolutions@gmail.com</p>
     </div>
   );
 };
