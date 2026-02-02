@@ -31,14 +31,19 @@ interface DashboardData {
   jiraStatus?: string;
 }
 
-// --- HELPER: Get Session Token (Satisfies Shopify Check) ---
+// Updated Helper: Retries finding the token if Shopify isn't ready yet
 const getSessionToken = async () => {
-  try {
+  // Retry up to 10 times (5 seconds max)
+  for (let i = 0; i < 10; i++) {
     if (window.shopify && window.shopify.id) {
-      return await window.shopify.id.getIdToken();
+      try {
+        return await window.shopify.id.getIdToken();
+      } catch (e) {
+        console.warn("Token fetch failed, retrying...", e);
+      }
     }
-  } catch (err) {
-    console.warn("App Bridge Token Error:", err);
+    // Wait 500ms before trying again
+    await new Promise((resolve) => setTimeout(resolve, 500));
   }
   return null;
 };
