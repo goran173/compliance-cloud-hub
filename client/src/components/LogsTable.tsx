@@ -14,13 +14,9 @@ interface Log {
 
 interface LogsTableProps {
   logs?: Log[];
-  hideHeader?: boolean;
 }
 
-const LogsTable: React.FC<LogsTableProps> = ({
-  logs: initialLogs,
-  hideHeader = false,
-}) => {
+const LogsTable: React.FC<LogsTableProps> = ({ logs: initialLogs }) => {
   // Internal state for when we fetch logs ourselves
   const [internalLogs, setInternalLogs] = useState<Log[]>([]);
   const [loading, setLoading] = useState(!initialLogs);
@@ -114,13 +110,6 @@ const LogsTable: React.FC<LogsTableProps> = ({
 
   return (
     <div className="overflow-hidden">
-      {!hideHeader && (
-        <div className="px-6 py-4 border-b border-slate-200 bg-slate-50/50">
-          <h3 className="text-base font-semibold text-slate-900">
-            Deletion Logs
-          </h3>
-        </div>
-      )}
       <div className="overflow-x-auto">
         <table className="min-w-full divide-y divide-slate-200">
           <thead className="bg-slate-50">
